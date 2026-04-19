@@ -1,0 +1,10 @@
+*.xcuserdata/
+**/*.xcuserdata/
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+
+# Local secrets. Do not commit real API keys.
+Secrets.xcconfig
+*.local.xcconfig
