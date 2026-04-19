@@ -1,7 +1,7 @@
 import UIKit
 
 enum GeminiService {
-    private static let endpoint = URL(string: "https://doggyfresh.vercel.app/api/generate")!
+    private static let endpoint = URL(string: "https://doggyfresh.cloud/api/generate")!
 
     static func refreshImage(_ image: UIImage,
                              style: RefreshStyle,
