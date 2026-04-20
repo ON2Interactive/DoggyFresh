@@ -6,10 +6,26 @@ struct SnapView: View {
 
     @State private var showCamera = false
     @State private var capturedImage: UIImage?
+    @State private var isOptimizing = false
+    @State private var errorMessage: String?
 
     var body: some View {
         Group {
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+            if isOptimizing {
+                VStack(spacing: 18) {
+                    ProgressView()
+                        .controlSize(.large)
+
+                    Text("Optimizing photo...")
+                        .font(.headline)
+
+                    Text("Adjusting lighting, clarity, and focus before opening Compose.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+            } else if UIImagePickerController.isSourceTypeAvailable(.camera) {
                 VStack(spacing: 20) {
                     Image(systemName: "camera.viewfinder")
                         .font(.system(size: 58))
@@ -22,6 +38,14 @@ struct SnapView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
+
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.callout)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
                 }
             } else {
                 VStack(spacing: 16) {
@@ -52,8 +76,27 @@ struct SnapView: View {
 
     private func handleCameraDismiss() {
         guard let capturedImage else { return }
-        onPhotoCaptured(capturedImage)
         self.capturedImage = nil
+        errorMessage = nil
+
+        Task {
+            await optimizeAndRoute(capturedImage)
+        }
+    }
+
+    @MainActor
+    private func optimizeAndRoute(_ image: UIImage) async {
+        isOptimizing = true
+        defer { isOptimizing = false }
+
+        do {
+            let optimizedImage = try await GeminiService.optimizeSnapImage(image)
+            onPhotoCaptured(optimizedImage)
+        } catch GeminiService.GeminiError.nonAnimalImage {
+            errorMessage = "Please snap an animal photo."
+        } catch {
+            onPhotoCaptured(image)
+        }
     }
 }
 

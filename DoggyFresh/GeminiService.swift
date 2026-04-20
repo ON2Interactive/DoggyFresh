@@ -14,6 +14,7 @@ struct GenerationPayload {
 
 enum GeminiService {
     private static let generateEndpoint = URL(string: "https://www.doggyfresh.cloud/api/generate")!
+    private static let optimizeEndpoint = URL(string: "https://www.doggyfresh.cloud/api/optimize")!
     private static let usageEndpoint = URL(string: "https://www.doggyfresh.cloud/api/usage")!
 
     static func fetchUsage() async throws -> UsageQuota {
@@ -100,6 +101,47 @@ enum GeminiService {
         return GenerationPayload(image: resultImage, usage: decodedResponse.usage)
     }
 
+    static func optimizeSnapImage(_ image: UIImage) async throws -> UIImage {
+        let resized = resizedImage(image, maxDimension: 1024)
+
+        guard let jpegData = resized.jpegData(compressionQuality: 0.8) else {
+            throw GeminiError.imageConversionFailed
+        }
+
+        let requestBody = OptimizeRequest(
+            imageData: jpegData.base64EncodedString(),
+            mimeType: "image/jpeg"
+        )
+
+        var request = URLRequest(url: optimizeEndpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120
+        request.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GeminiError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(ProxyErrorResponse.self, from: data)
+            if httpResponse.statusCode == 422 {
+                throw GeminiError.nonAnimalImage
+            }
+            throw GeminiError.serverError(httpResponse.statusCode, errorResponse?.error)
+        }
+
+        guard let decodedResponse = try? JSONDecoder().decode(OptimizeResponse.self, from: data),
+              let imageData = Data(base64Encoded: decodedResponse.imageData),
+              let resultImage = UIImage(data: imageData) else {
+            throw GeminiError.invalidResponse
+        }
+
+        return resultImage
+    }
+
     private static func resizedImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
         let size = image.size
         guard max(size.width, size.height) > maxDimension else { return image }
@@ -167,10 +209,20 @@ private struct ProxyRequest: Encodable {
     let deviceID: String
 }
 
+private struct OptimizeRequest: Encodable {
+    let imageData: String
+    let mimeType: String
+}
+
 private struct ProxyResponse: Decodable {
     let imageData: String
     let mimeType: String
     let usage: UsageQuota
+}
+
+private struct OptimizeResponse: Decodable {
+    let imageData: String
+    let mimeType: String
 }
 
 private struct UsageResponse: Decodable {

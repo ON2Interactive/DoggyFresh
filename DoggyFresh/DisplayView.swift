@@ -20,38 +20,43 @@ struct DisplayView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            topActions
-
-            Spacer(minLength: 0)
-
-            Image(uiImage: displayedImage)
-                .resizable()
-                .scaledToFit()
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .padding(.horizontal)
-
-            Spacer(minLength: 0)
-
-            VStack(spacing: 10) {
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.callout)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .ignoresSafeArea()
+                .onTapGesture {
+                    isPromptFocused = false
                 }
 
-                promptComposer
+            VStack(spacing: 16) {
+                topActions
+
+                Spacer(minLength: 0)
+
+                Image(uiImage: displayedImage)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .padding(.horizontal)
+
+                Spacer(minLength: 0)
+
+                VStack(spacing: 10) {
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.callout)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+
+                    promptComposer
+                }
             }
         }
         .padding(.horizontal)
         .padding(.top, 8)
         .padding(.bottom, 12)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            isPromptFocused = false
-        }
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
         .alert("Saved!", isPresented: $showSaveConfirmation) {
@@ -146,6 +151,7 @@ struct DisplayView: View {
         let instruction = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !instruction.isEmpty else { return }
 
+        isPromptFocused = false
         isGenerating = true
         errorMessage = nil
 
