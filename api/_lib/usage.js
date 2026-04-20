@@ -1,6 +1,6 @@
 import { getRedisClient } from "./redis.js";
 
-export const MONTHLY_LIMIT = 40;
+export const MONTHLY_LIMIT = 60;
 
 export function normalizeDeviceID(deviceID) {
   if (typeof deviceID !== "string") {
