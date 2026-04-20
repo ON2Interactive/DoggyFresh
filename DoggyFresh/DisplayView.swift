@@ -9,6 +9,7 @@ struct DisplayView: View {
     @State private var displayedImage: UIImage
     @State private var promptText = ""
     @State private var isGenerating = false
+    @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showSaveConfirmation = false
     @FocusState private var isPromptFocused: Bool
@@ -81,17 +82,21 @@ struct DisplayView: View {
 
             HStack(spacing: 4) {
                 Button {
-                    Task {
-                        try? await ImageSaver.save(displayedImage)
-                        showSaveConfirmation = true
-                    }
+                    Task { await saveImage() }
                 } label: {
-                    Image(systemName: "square.and.arrow.down")
-                        .font(.system(size: 24, weight: .regular))
-                        .foregroundStyle(.tint)
-                        .frame(width: 42, height: 42)
+                    if isSaving {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 42, height: 42)
+                    } else {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 24, weight: .regular))
+                            .foregroundStyle(.tint)
+                            .frame(width: 42, height: 42)
+                    }
                 }
                 .buttonStyle(.plain)
+                .disabled(isSaving)
                 .accessibilityLabel("Save image")
 
                 ShareLink(item: Image(uiImage: displayedImage),
@@ -137,7 +142,7 @@ struct DisplayView: View {
                 }
             }
             .buttonStyle(.plain)
-            .disabled(isGenerating || promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(isGenerating || isSaving || promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .opacity(promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.55 : 1)
             .accessibilityLabel("Generate from prompt")
         }
@@ -169,6 +174,22 @@ struct DisplayView: View {
         }
 
         isGenerating = false
+    }
+
+    @MainActor
+    private func saveImage() async {
+        guard !isSaving else { return }
+
+        isPromptFocused = false
+        isSaving = true
+        defer { isSaving = false }
+
+        do {
+            try await ImageSaver.save(displayedImage)
+            showSaveConfirmation = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

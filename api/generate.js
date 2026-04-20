@@ -77,7 +77,7 @@ async function generateImage(payload) {
 }
 
 function buildPrompt(styleDescription, dogContext = {}, customInstruction) {
-  let prompt = `Using the provided animal photo, create a new artistic image in ${styleDescription}. Preserve the actual animal species shown in the source image.`;
+  let prompt = `Create a single premium cinematic portrait from the provided animal photo in ${styleDescription}. Preserve the exact same animal identity, species, face structure, markings, fur color, proportions, and core expression from the source image. Keep the result realistic, editorial, polished, and visually striking. Avoid cartoon styling unless explicitly requested, avoid distorted anatomy, duplicate animals, extra limbs, extra heads, text, watermark, cluttered props, messy costume styling, and cheap-looking backgrounds.`;
 
   if (dogContext.name) {
     prompt += ` This is ${dogContext.name}`;
@@ -97,6 +97,6 @@ function buildPrompt(styleDescription, dogContext = {}, customInstruction) {
     prompt += ` Apply this user direction: ${instruction}.`;
   }
 
-  prompt += " Keep the pet recognizable and make it look great. Generate the final image as a square 1:1 composition. Return one generated image only, with no text-only response.";
+  prompt += " Keep the animal instantly recognizable and make it look exceptional. Generate the final image as a square 1:1 composition. Return one generated image only, with no text-only response.";
   return prompt;
 }
