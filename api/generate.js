@@ -1,3 +1,5 @@
+import { MONTHLY_LIMIT, fetchUsage, incrementUsage } from "./_lib/usage.js";
+
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent";
 
 const animalValidationPrompt = `
@@ -34,13 +36,22 @@ export default async function handler(request, response) {
     return;
   }
 
-  const { imageData, mimeType, styleDescription, dogContext, customInstruction } = request.body || {};
+  const { imageData, mimeType, styleDescription, dogContext, customInstruction, deviceID } = request.body || {};
   if (!imageData || !mimeType || !styleDescription) {
     response.status(400).json({ error: "Missing image or style data" });
     return;
   }
 
   try {
+    const usage = await fetchUsage(deviceID);
+    if (usage.used >= MONTHLY_LIMIT) {
+      response.status(429).json({
+        error: "Monthly generation limit reached.",
+        usage
+      });
+      return;
+    }
+
     await validateAnimalImage(apiKey, imageData, mimeType);
     const generatedImage = await generateImage(apiKey, {
       imageData,
@@ -49,10 +60,12 @@ export default async function handler(request, response) {
       dogContext: dogContext || {},
       customInstruction
     });
+    const updatedUsage = await incrementUsage(deviceID);
 
     response.status(200).json({
       imageData: generatedImage.data,
-      mimeType: generatedImage.mimeType || "image/png"
+      mimeType: generatedImage.mimeType || "image/png",
+      usage: updatedUsage
     });
   } catch (error) {
     const status = error.status || 500;

@@ -17,10 +17,6 @@ struct RefreshView: View {
     @State private var cameraImage: UIImage?
     @State private var showSaveConfirmation = false
 
-    @AppStorage("dogProfile.name") private var dogName = ""
-    @AppStorage("dogProfile.gender") private var dogGender = ""
-    @AppStorage("dogProfile.color") private var dogColor = ""
-
     var body: some View {
         Group {
             switch appState {
@@ -75,7 +71,7 @@ struct RefreshView: View {
                 .font(.system(size: 60))
                 .foregroundStyle(.tint)
 
-            Text("Give \(dogName.isEmpty ? "your dog" : dogName) a fresh new look")
+            Text("Give \(activeDogName.isEmpty ? "your dog" : activeDogName) a fresh new look")
                 .font(.headline)
                 .multilineTextAlignment(.center)
 
@@ -237,12 +233,16 @@ struct RefreshView: View {
     private func refreshImage(_ image: UIImage) async {
         appState = .processing
         do {
-            let dogContext = DogContext(name: dogName, gender: dogGender, color: dogColor)
-            let refreshed = try await GeminiService.refreshImage(image, style: selectedStyle, dogContext: dogContext)
-            appState = .result(original: image, refreshed: refreshed)
+            let dogContext = DogProfileStorage.dogContextForActiveDog()
+            let payload = try await GeminiService.refreshImage(image, style: selectedStyle, dogContext: dogContext)
+            appState = .result(original: image, refreshed: payload.image)
         } catch {
             appState = .error(error.localizedDescription)
         }
+    }
+
+    private var activeDogName: String {
+        DogProfileStorage.activeDog()?.name ?? ""
     }
 
     private func resetState() {

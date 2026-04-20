@@ -15,6 +15,7 @@ private struct GeneratedPhoto: Identifiable {
 
 struct ComposeView: View {
     @Binding var snappedImage: UIImage?
+    @AppStorage("dogProfiles.v2.activeDogID") private var activeDogIDRaw = ""
 
     @State private var selectedStyle: RefreshStyle = .cartoon
     @State private var composeState: ComposeState = .ready
@@ -25,16 +26,35 @@ struct ComposeView: View {
     @State private var showCamera = false
     @State private var photosPickerItem: PhotosPickerItem?
     @State private var cameraImage: UIImage?
+    @State private var usage: UsageQuota?
+    @State private var isLoadingUsage = false
 
-    @AppStorage("dogProfile.name") private var dogName = ""
-    @AppStorage("dogProfile.gender") private var dogGender = ""
-    @AppStorage("dogProfile.color") private var dogColor = ""
+    private var activeDogID: UUID? {
+        UUID(uuidString: activeDogIDRaw)
+    }
+
+    private var activeDogName: String {
+        let _ = activeDogID
+        return DogProfileStorage.activeDog()?.name ?? ""
+    }
+
+    private var activeDogNameFont: Font {
+        UIDevice.current.userInterfaceIdiom == .phone ? .system(size: 14) : .body
+    }
 
     var body: some View {
         VStack(spacing: 28) {
             Spacer()
 
-            profilePhoto
+            VStack(spacing: 10) {
+                profilePhoto
+
+                if !activeDogName.isEmpty {
+                    Text(activeDogName)
+                        .font(activeDogNameFont.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Picker("Preset", selection: $selectedStyle) {
                 ForEach(RefreshStyle.allCases) { style in
@@ -43,6 +63,8 @@ struct ComposeView: View {
             }
             .pickerStyle(.wheel)
             .frame(height: 140)
+
+            usageView
 
             Button {
                 Task { await generatePhoto() }
@@ -73,6 +95,13 @@ struct ComposeView: View {
         .padding()
         .navigationTitle("Compose")
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: activeDogIDRaw) { _, _ in
+            snappedImage = nil
+            composeState = .ready
+        }
+        .task {
+            await refreshUsage()
+        }
         .confirmationDialog("Choose photo source", isPresented: $showPhotoSourceDialog, titleVisibility: .hidden) {
             Button("Choose photo") {
                 showPhotoPicker = true
@@ -125,7 +154,7 @@ struct ComposeView: View {
             showPhotoSourceDialog = true
         } label: {
             Group {
-                if let image = snappedImage ?? DogProfileStorage.loadPhoto() {
+                if let image = currentComposeImage {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -146,21 +175,53 @@ struct ComposeView: View {
         .accessibilityLabel("Change source photo")
     }
 
+    private var currentComposeImage: UIImage? {
+        let _ = activeDogID
+        return snappedImage ?? DogProfileStorage.loadPhoto()
+    }
+
+    private var usageView: some View {
+        Group {
+            if isLoadingUsage && usage == nil {
+                ProgressView()
+                    .controlSize(.small)
+            } else if let usage {
+                Text("\(usage.remaining) of \(usage.limit) generations left this month")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private func generatePhoto() async {
-        guard let image = snappedImage ?? DogProfileStorage.loadPhoto() else {
+        guard let image = currentComposeImage else {
             composeState = .error("Add or snap a dog photo first.")
             return
         }
 
         composeState = .generating
         do {
-            let context = DogContext(name: dogName, gender: dogGender, color: dogColor)
-            let refreshed = try await GeminiService.refreshImage(image, style: selectedStyle, dogContext: context)
-            generatedPhoto = GeneratedPhoto(style: selectedStyle, image: refreshed)
+            let context = DogProfileStorage.dogContextForActiveDog()
+            let payload = try await GeminiService.refreshImage(image, style: selectedStyle, dogContext: context)
+            generatedPhoto = GeneratedPhoto(style: selectedStyle, image: payload.image)
+            usage = payload.usage
             showDisplay = true
             composeState = .ready
         } catch {
             composeState = .error(error.localizedDescription)
+        }
+    }
+
+    private func refreshUsage() async {
+        isLoadingUsage = true
+        defer { isLoadingUsage = false }
+
+        do {
+            usage = try await GeminiService.fetchUsage()
+        } catch {
+            if usage == nil {
+                composeState = .error(error.localizedDescription)
+            }
         }
     }
 }

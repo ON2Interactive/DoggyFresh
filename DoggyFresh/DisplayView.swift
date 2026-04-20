@@ -150,12 +150,13 @@ struct DisplayView: View {
         errorMessage = nil
 
         do {
-            displayedImage = try await GeminiService.refreshImage(
+            let payload = try await GeminiService.refreshImage(
                 displayedImage,
                 style: style,
                 dogContext: DogContext(name: "", gender: "", color: ""),
                 customInstruction: instruction
             )
+            displayedImage = payload.image
             promptText = ""
         } catch {
             errorMessage = error.localizedDescription
